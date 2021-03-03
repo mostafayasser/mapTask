@@ -1,6 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_place_picker/google_maps_place_picker.dart';
+import 'package:google_maps_webservice/places.dart' as placesAPI;
 import 'package:location/location.dart';
 
 import 'package:map_task/models/locationStream.dart';
@@ -15,20 +18,23 @@ class MainScreen extends StatefulWidget {
   _MainScreenState createState() => _MainScreenState();
 }
 
-const double CAMERA_ZOOM = 16;
-const double CAMERA_TILT = 80;
-const double CAMERA_BEARING = 30;
+const double CAMERA_ZOOM = 17;
+const double CAMERA_TILT = 10;
+const double CAMERA_BEARING = 10;
 const LatLng SOURCE_LOCATION = LatLng(42.747932, -71.167889);
 const LatLng DEST_LOCATION = LatLng(37.335685, -122.0605916);
+const String googleAPIKey = 'AIzaSyDkKmDEKVMsYUhoisWXLj71Eat34O71_og';
 
 class _MainScreenState extends State<MainScreen> {
+  TextEditingController textController = TextEditingController();
   Completer<GoogleMapController> _controller = Completer();
   Set<Marker> _markers = Set<Marker>();
+  final places = new placesAPI.GoogleMapsPlaces(
+      apiKey: googleAPIKey); //intialize the places api
 // for my drawn routes on the map
   Set<Polyline> _polylines = Set<Polyline>();
   List<LatLng> polylineCoordinates = [];
   PolylinePoints polylinePoints;
-  String googleAPIKey = 'AIzaSyDkKmDEKVMsYUhoisWXLj71Eat34O71_og';
 // for my custom marker pins
   BitmapDescriptor sourceIcon;
   BitmapDescriptor destinationIcon;
@@ -59,11 +65,11 @@ class _MainScreenState extends State<MainScreen> {
 
     // subscribe to changes in the user's location
     // by "listening" to the location's onLocationChanged event
-    LocationStream().stream.listen((LocationData cLoc) {
+    /* LocationStream().stream.listen((LocationData cLoc) {
       currentLocation = cLoc;
       print(cLoc);
       updatePinOnMap();
-    });
+    }); */
 
     // set custom marker pins
     setSourceAndDestinationIcons();
@@ -132,10 +138,90 @@ class _MainScreenState extends State<MainScreen> {
               }),
           MapPinPillComponent(
               pinPillPosition: pinPillPosition,
-              currentlySelectedPin: currentlySelectedPin)
+              currentlySelectedPin: currentlySelectedPin),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 30, vertical: 60),
+            child: TextFormField(
+              controller: textController,
+              keyboardType: TextInputType.text,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                suffixIcon: GestureDetector(
+                  onTap: () async {
+                    print(textController.text);
+                    getPlace(textController.text);
+                  },
+                  child: Icon(
+                    Icons.search,
+                  ),
+                ),
+                fillColor: Colors.white,
+                filled: true,
+                hintText: "Enter place Name",
+                labelStyle: TextStyle(fontSize: 14.0),
+                hintStyle: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 10.0,
+                ),
+              ),
+              style: TextStyle(fontSize: 14.0),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+// put marker in the place searched for by the user
+  void getPlace(String place) async {
+    var location = await Location.instance.getLocation();
+    var dio = Dio();
+    //var url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+    var url =
+        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=cairo+Amphitheatre&key=$googleAPIKey&sessiontoken=1234567890";
+    var parameters = {
+      'key': googleAPIKey,
+      'location': location != null
+          ? '${location.latitude},${location.longitude}'
+          : '${SOURCE_LOCATION.latitude},${SOURCE_LOCATION.longitude}',
+      'radius': '800',
+      'keyword': place
+    };
+    var res = await dio.get(url, queryParameters: parameters);
+    print(res.data.toString());
+
+    /*  placesAPI.PlacesSearchResponse response =
+        await places.searchByText("123 Main Street");
+    setState(() {
+      _markers.add(Marker(
+        markerId: MarkerId('sourcePin'),
+        position: LatLng(response.results.first.geometry.location.lat,
+            response.results.first.geometry.location.lng),
+        onTap: () {},
+      ));
+    }); */
+    /* var location = await Location.instance.getLocation();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlacePicker(
+          apiKey: googleAPIKey, // Put YOUR OWN KEY here.
+          onPlacePicked: (result) {
+            print(result.adrAddress);
+            Navigator.of(context).pop();
+          },
+          initialPosition: location != null
+              ? LatLng(location.latitude, location.longitude)
+              : SOURCE_LOCATION,
+          useCurrentLocation: true,
+        ),
+      ),
+    ); */
   }
 
   void showPinsOnMap() {
